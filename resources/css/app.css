@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+@theme {
+  --color-forest-50: #F4F9F5;
+  --color-forest-100: #E2EFE3;
+  --color-forest-600: #40916C;
+  --color-forest-800: #1B4332;
+  
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Poppins", ui-serif, serif;
+}
+
+@layer base {
+  /* Pengaturan Global Typography */
+  body {
+    @apply antialiased;
+  }
+
+  .hero-badge {
+    @apply inline-flex items-center space-x-2 bg-white/10 backdrop-blur-md border border-white/20 text-xs font-medium px-4 py-1.5 rounded-full tracking-wide text-[#F4F7F5];
+  }
+
+  .hero-title {
+    @apply mt-8 font-serif text-4xl sm:text-5xl md:text-6xl font-bold leading-tight tracking-tight max-w-4xl text-[#F4F7F5];
+  }
+
+  .hero-description {
+    @apply mt-6 text-base sm:text-lg text-gray-200 max-w-2xl leading-relaxed font-light;
+  }
+
+  .stat-number {
+    @apply font-serif text-4xl sm:text-5xl font-bold tracking-tight text-[#F4F7F5];
+  }
+
+  .stat-label {
+    @apply mt-2 text-xs uppercase tracking-widest text-gray-300 font-medium;
+  }
+}
+
+@layer components {
+  /* Sidebar & Filter */
+  .filter-sidebar {
+    @apply bg-white p-6 rounded-2xl border border-gray-100 shadow-sm space-y-6;
+  }
+  .filter-heading {
+    @apply font-bold text-gray-800 text-base mb-4 border-b border-gray-100 pb-2;
+  }
+  .filter-btn {
+    @apply w-full text-left py-2 px-3 rounded-xl transition duration-200 text-sm font-medium;
+  }
+  .filter-btn-active {
+    @apply bg-forest-50 text-forest-800 font-semibold;
+  }
+  .filter-btn-inactive {
+    @apply text-gray-600 hover:bg-gray-50;
+  }
+
+  /* Kartu & Katalog */
+  .product-card {
+    @apply bg-white rounded-2xl overflow-hidden border border-gray-100 shadow-sm hover:shadow-md transition flex flex-col justify-between;
+  }
+  .testimoni-card {
+    @apply bg-white p-8 rounded-3xl border border-gray-100 shadow-sm flex flex-col justify-between transition-all duration-300;
+  }
+  .testimoni-text {
+    @apply text-gray-700 leading-relaxed italic font-medium;
+  }
+  .testimoni-avatar {
+    @apply w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg flex-shrink-0;
+  }
+
+  /* Tombol & UI */
+  .btn-primary {
+    @apply bg-white text-emerald-900 hover:bg-emerald-50 px-8 py-4 rounded-full font-medium transition shadow-xl hover:scale-105 active:scale-95 duration-200 flex items-center space-x-2;
+  }
+  .btn-whatsapp {
+    @apply w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 hover:text-emerald-900 border border-emerald-200 py-2.5 rounded-xl text-sm font-semibold transition text-center flex items-center justify-center space-x-2;
+  }
+  .btn-contact {
+    @apply bg-green-600 hover:bg-green-700 text-white px-10 py-5 rounded-2xl font-bold text-lg transition flex items-center justify-center space-x-3 shadow-2xl shadow-green-600/30;
+  }
+}
+
+@layer utilities {
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .animate-scroll {
+    display: flex;
+    animation: scroll 100s linear infinite;
+  }
+  .animate-scroll:hover {
+    animation-play-state: paused;
+  }
+}
+
+@keyframes scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
