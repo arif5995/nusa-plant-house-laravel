@@ -4,10 +4,12 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Services\RajaOngkirService;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 new class extends Component
 {
     //
+    use WithFileUploads;
     public $cart = [];
     public $step = 1; // 1 = Keranjang, 2 = Pengiriman, 3 = Konfirmasi
     public $shippingType = 'local';
@@ -24,6 +26,9 @@ new class extends Component
     public $postalCode = '';
     public $shippingAddress = '';
     public $agreeTerms = false; // Checklist untuk sertifikat phytosanitary
+    
+    // 3. Properti untuk menampung file upload bukti transfer
+    public $paymentReceipt;
 
     public function nextStep()
     {
@@ -40,6 +45,11 @@ new class extends Component
     public function prevStep()
     {
         $this->step--;
+    }
+
+    public function redirectToLogin()
+    {
+        return redirect()->route('login');
     }
 
     public function mount()
@@ -66,6 +76,18 @@ new class extends Component
 
     public function checkout()
     {
+        // 1. Validasi bukti transfer
+        $this->validate([
+            'paymentReceipt' => 'required|file|mimes:jpg,jpeg,png,pdf|max:2048', // Max 2 MB
+        ]);
+
+        // 2. Konversi File ke Base64 String
+        $fileContents = file_get_contents($this->paymentReceipt->getRealPath());
+        $mimeType     = $this->paymentReceipt->getMimeType();
+        
+        // Format standar Base64 Data URI (opsional, tapi memudahkan saat ditampilkan di tag <img>)
+        $base64String = 'data:' . $mimeType . ';base64,' . base64_encode($fileContents);
+
         $cart = session()->get('cart');
 
         // 1. Simpan ke tabel Orders
@@ -75,6 +97,7 @@ new class extends Component
             'shipping_type' => $this->shippingType,
             'address' => $this->shippingAddress,
             'total_price'   => $this->subtotal + $this->shippingCost,
+            'payment_receipt' => $base64String, // Simpan string Base64 ke DB
             'status'        => 'pending',
         ]);
 

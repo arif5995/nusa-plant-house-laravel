@@ -26,52 +26,7 @@
 
             <div class="flex items-center space-x-4">
                @auth
-                <!-- Dropdown Container -->
-                <div x-data="{ openDropdown: false }" class="relative">
-                    <!-- Trigger: Lingkaran Profil -->
-                    <button @click="openDropdown = !openDropdown" class="flex items-center space-x-2 focus:outline-none">
-                        <div class="w-10 h-10 rounded-full bg-forest-100 border border-forest-600 flex items-center justify-center text-forest-800 font-bold hover:bg-forest-200 transition">
-                            {{ substr(auth()->user()->name, 0, 1) }}
-                        </div>
-                    </button>
-
-                    <!-- Dropdown Menu -->
-                                <!-- Dropdown Menu yang Ditingkatkan -->
-                            <!-- Gunakan w-72 dan min-w-[280px] agar lebar lebih terjamin -->
-                    <div x-show="openDropdown" 
-                        @click.away="openDropdown = false"
-                        x-transition:enter="transition ease-out duration-200"
-                        x-transition:enter-start="transform opacity-0 scale-95"
-                        x-transition:enter-end="transform opacity-100 scale-100"
-                        class="absolute right-0 mt-3 w-72 min-w-[280px] bg-white rounded-2xl shadow-2xl border border-gray-100 py-2 z-[999] overflow-hidden">
-                        
-                        <!-- Bagian Header User -->
-                        <div class="px-6 py-4 bg-gray-50/50 border-b border-gray-100">
-                            <p class="text-[10px] uppercase tracking-widest text-gray-400 font-bold">Masuk sebagai</p>
-                            <p class="text-sm font-bold text-gray-800 truncate mt-1">{{ auth()->user()->name }}</p>
-                        </div>
-
-                        <!-- Gunakan blok di bawah ini untuk link agar tidak terpotong -->
-                        <div class="py-2">
-                            <a href="#" class="flex items-center px-6 py-3.5 text-sm text-gray-700 hover:bg-forest-50 hover:text-forest-700 transition duration-150">
-                                <i class="fa-solid fa-gauge-high mr-4 text-forest-600"></i> <span class="font-medium">Dashboard</span>
-                            </a>
-                            
-                            <a href="#" class="flex items-center px-6 py-3 text-sm text-gray-700 hover:bg-forest-50 hover:text-forest-700 transition duration-150">
-                                <i class="fa-solid fa-user-gear mr-4 text-forest-600"></i> <span class="font-medium">Pengaturan Profil</span>
-                            </a>
-                        </div>
-
-                        <div class="border-t border-gray-100">
-                            <form wire:submit="logout">
-                                @csrf
-                                <button type="submit" class="flex w-full items-center px-6 py-4 text-sm text-red-600 hover:bg-red-50 transition duration-150">
-                                    <i class="fa-solid fa-right-from-bracket mr-4"></i> <span class="font-medium">Keluar</span>
-                                </button>
-                            </form>
-                        </div>
-                    </div>
-                </div>
+                <livewire:navbar-dropdown />
             @else
                 <a href="{{ route('login') }}" class="text-sm font-semibold text-gray-600 hover:text-forest-600">Masuk</a>
             @endauth

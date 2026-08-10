@@ -15,7 +15,8 @@ class Order extends Model
         'address',
         'country',
         'total_price',
-        'status',
+        'status',   
+        'payment_receipt',
     ];
 
     /**

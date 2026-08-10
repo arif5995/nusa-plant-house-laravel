@@ -20,6 +20,7 @@ return new class extends Migration
             $table->string('country')->nullable(); // Untuk ekspor
             $table->decimal('total_price', 12, 2);
             $table->string('status')->default('pending'); // pending, processed, shipped
+            // $table->longText('payment_receipt')->nullable();
             $table->timestamps();
         });
     }
