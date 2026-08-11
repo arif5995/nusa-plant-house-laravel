@@ -1,544 +1,115 @@
-TASK — Dashboard Riwayat Transaksi & Detail Pengiriman
+# Implement GitHub Issue #3: Dashboard Riwayat Transaksi & Detail Pengiriman
+
+## Goal Description
 
-1. Project
+Implement the full feature set described in issue #3 for the **nusa-plant-house-laravel** project. This includes:
+- Database migrations for `orders`, `order_items`, and `shipments`.
+- Eloquent models with proper relationships.
+- Service classes (`OrderService`, `ShipmentService`) handling business logic.
+- Livewire components (`TransactionHistory`, `ShippingDetail`) with Blade views.
+- Routes, UI design, filtering, pagination, empty state, security checks, and testing.
 
-Project ini menggunakan:
+## User Review Required
 
-Laravel 13
-Livewire 3
-Blade
-Tailwind CSS
-MySQL
-Authentication Laravel yang sudah tersedia
+> [!IMPORTANT]
+> The implementation will modify existing `Order` model fields and add new models/migrations. Ensure these changes align with any existing data or other parts of the application.
+>
+> > **Breaking Change**: The current `Order` model uses fields like `customer_name`, `phone`, `shipping_type`, etc. The issue requires a different schema (e.g., `user_id`, `order_number`, `status`, `subtotal`, `shipping_cost`, `total`, `payment_status`). Confirm if we should replace the existing schema entirely or migrate/extend it.
+>
+> > **Design Confirmation**: The UI design follows the project's existing Tailwind design system. If there are custom color or component preferences beyond the specification, let us know.
 
-Gunakan Livewire Component per fitur.
+## Open Questions
 
-Struktur yang digunakan:
+> [!QUESTION]
+> 1. Should the existing `orders` table be dropped/recreated to match the new field list, or should we add missing columns to it?
+>
+> 2. Do you already have `OrderItem` and `Shipment` model files (or should we create them from scratch)?
+>
+> 3. For the `ShipmentService`, do you need a helper to generate a tracking URL based on the courier (e.g., JNE) or a placeholder URL is sufficient?
+>
+> 4. Any specific naming conventions for route names beyond those already suggested?
+>
+> 5. Do you prefer to use Laravel factories/seeder for initial data, or will you populate manually?
+>
+> 6. Should the Livewire components be placed under `app/Livewire/Dashboard/` as per the spec (already intended), and Blade views under `resources/views/livewire/dashboard/`?
 
-app/
-├── Livewire/
-│ └── Dashboard/
-│ ├── TransactionHistory.php
-│ └── ShippingDetail.php
-│
-├── Models/
-│ ├── Order.php
-│ ├── OrderItem.php
-│ └── Shipment.php
-│
-└── Services/
-├── OrderService.php
-└── ShipmentService.php
+## Proposed Changes
 
-View:
+---
+### Database Migrations
 
-resources/
-└── views/
-└── livewire/
-└── dashboard/
-├── transaction-history.blade.php
-└── shipping-detail.blade.php 2. Tujuan
+- **[NEW] database/migrations/xxxx_xx_xx_create_orders_table.php** – create `orders` table with fields: `id`, `user_id`, `order_number`, `status`, `subtotal`, `shipping_cost`, `total`, `payment_status`, timestamps.
+- **[NEW] database/migrations/xxxx_xx_xx_create_order_items_table.php** – create `order_items` table with fields: `id`, `order_id`, `product_id`, `product_name`, `quantity`, `price`, `subtotal`, timestamps.
+- **[NEW] database/migrations/xxxx_xx_xx_create_shipments_table.php** – create `shipments` table with fields: `id`, `order_id`, `courier`, `service`, `tracking_number`, `status`, `shipped_at`, `delivered_at`, timestamps.
+- **[DELETE] database/migrations/2026_08_07_064910_add_profile_fields_to_users_table.php** – (if unrelated to this feature).
 
-Tambahkan dua fitur pada Dashboard User:
+---
+### Models
 
-A. Riwayat Transaksi
+- **[MODIFY] app/Models/Order.php** – replace fillable fields with the new schema, add relationships `items()` and `shipment()`.
+- **[NEW] app/Models/OrderItem.php** – model with `belongsTo Order` relationship.
+- **[NEW] app/Models/Shipment.php** – model with `belongsTo Order` relationship.
 
-User dapat melihat semua transaksi yang pernah dilakukan.
+---
+### Services
 
-B. Detail Pengiriman
+- **[NEW] app/Services/OrderService.php** – methods:
+  - `getUserOrders(User $user, $filter = null, $perPage = 10)`
+  - `getOrderDetail(User $user, $orderId)`
+  - `applyFilter($query, $status)`
+- **[NEW] app/Services/ShipmentService.php** – methods:
+  - `getShipmentByOrder(Order $order)`
+  - `generateTrackingUrl(string $courier, string $trackingNumber)` (placeholder logic).
 
-User dapat melihat detail transaksi dan informasi pengiriman dari transaksi tersebut.
+---
+### Livewire Components & Views
 
-3. Database
+- **[NEW] app/Livewire/Dashboard/TransactionHistory.php** – loads paginated orders via `OrderService`, supports filter selection, emits loading state.
+- **[NEW] resources/views/livewire/dashboard/transaction-history.blade.php** – UI showing cards/grid, filter dropdown, pagination, empty state, loading spinner.
+- **[NEW] app/Livewire/Dashboard/ShippingDetail.php** – loads order + shipment details, displays timeline, tracking button.
+- **[NEW] resources/views/livewire/dashboard/shipping-detail.blade.php** – UI for detailed view with timeline, address, tracking link.
 
-Buat 3 tabel:
+---
+### Routes
 
-orders
-order_items
-shipments
-Orders
+- **[MODIFY] routes/web.php** – add routes inside `auth` middleware group:
+```php
+Route::get('/dashboard/transactions', \App\Livewire\Dashboard\TransactionHistory::class)->name('dashboard.transactions');
+Route::get('/dashboard/transactions/{order}', \App\Livewire\Dashboard\ShippingDetail::class)->name('dashboard.transactions.detail');
+```
 
-Field:
+---
+### UI Polish & Asset Adjustments
 
-id
-user_id
-order_number
-status
-subtotal
-shipping_cost
-total
-payment_status
-created_at
-updated_at
+- Update `resources/css/app.css` if any custom Tailwind utilities are needed (e.g., custom colors, card styling).
+- Ensure responsive design classes for mobile/desktop as per spec.
 
-Status order:
+---
+### Security
 
-pending
-paid
-processing
-shipped
-delivered
-cancelled
-Order Items
+- In Livewire components and services, always scope queries with `where('user_id', auth()->id())`.
+- Add policy checks (optional) to further enforce ownership.
 
-Field:
+---
+### Testing
 
-id
-order_id
-product_id
-product_name
-quantity
-price
-subtotal
-created_at
-updated_at
+- Add feature tests under `tests/Feature/TransactionHistoryTest.php` covering the six test scenarios described.
+- Run `php artisan test` after implementation.
 
-Satu order dapat memiliki banyak order item.
+---
+### Documentation
 
-Shipments
+- Update README or a new `docs/transactions.md` summarizing usage.
 
-Field:
+## Verification Plan
 
-id
-order_id
-courier
-service
-tracking_number
-status
-shipped_at
-delivered_at
-created_at
-updated_at
+### Automated Tests
+- Run `php artisan migrate:fresh --seed`.
+- Execute `php artisan test` and ensure all new feature tests pass.
 
-Status shipment:
+### Manual Verification
+- Log in as a user with orders and confirm dashboard displays correct list, filters, pagination, empty state.
+- Open a transaction detail page and verify shipment timeline, tracking button, and security (cannot view another user’s order).
+- Test on desktop, tablet, and mobile screen sizes.
 
-pending
-processing
-shipped
-in_transit
-delivered 4. Relasi Model
-
-Buat relasi berikut:
-
-User
-└── hasMany Orders
-
-Order
-├── belongsTo User
-├── hasMany OrderItems
-└── hasOne Shipment
-
-OrderItem
-└── belongsTo Order
-
-Shipment
-└── belongsTo Order
-
-Gunakan Eloquent relationship.
-
-5. Fitur Riwayat Transaksi
-
-Buat Livewire:
-
-php artisan make:livewire Dashboard/TransactionHistory
-
-Component:
-
-app/Livewire/Dashboard/TransactionHistory.php
-
-View:
-
-resources/views/livewire/dashboard/transaction-history.blade.php
-Tampilkan
-
-Setiap transaksi harus menampilkan:
-
-Nomor Order
-Tanggal Order
-Produk
-Jumlah Produk
-Total Harga
-Status Pembayaran
-Status Order
-
-Contoh:
-
-ORD-20260811-0001
-
-11 Agustus 2026
-
-Bonsai
-1 x Rp250.000
-
-Pupuk Organik
-2 x Rp50.000
-
-Total: Rp350.000
-
-Status: Dalam Pengiriman
-
-[Lihat Detail] 6. Filter Transaksi
-
-Tambahkan filter:
-
-Semua
-Pending
-Diproses
-Dikirim
-Selesai
-Dibatalkan
-
-Ketika user memilih filter, daftar transaksi berubah tanpa reload halaman.
-
-Gunakan Livewire.
-
-7. Pagination
-
-Tampilkan maksimal:
-
-10 transaksi per halaman
-
-Gunakan pagination Laravel/Livewire.
-
-8. Empty State
-
-Jika user belum mempunyai transaksi, tampilkan:
-
-Belum Ada Transaksi
-
-Anda belum melakukan pembelian.
-Yuk mulai belanja produk tanaman kami.
-
-[Mulai Belanja] 9. Detail Pengiriman
-
-Buat Livewire:
-
-php artisan make:livewire Dashboard/ShippingDetail
-
-Component:
-
-app/Livewire/Dashboard/ShippingDetail.php
-
-View:
-
-resources/views/livewire/dashboard/shipping-detail.blade.php 10. Informasi Detail
-
-Halaman detail harus menampilkan:
-
-Informasi Order
-Nomor Order
-Tanggal Order
-Status Order
-Status Pembayaran
-Produk
-Nama Produk
-Jumlah
-Harga
-Subtotal
-Pengiriman
-Kurir
-Layanan
-Nomor Resi
-Status Pengiriman
-Alamat
-Nama Penerima
-Nomor Telepon
-Alamat
-Kota
-Provinsi
-Kode Pos 11. Timeline Pengiriman
-
-Buat timeline sederhana:
-
-✓ Pesanan Dibuat
-
-✓ Pembayaran Dikonfirmasi
-
-✓ Pesanan Diproses
-
-● Pesanan Dikirim
-
-○ Pesanan Diterima
-
-Status yang belum selesai harus terlihat berbeda dari status yang sudah selesai.
-
-Gunakan Tailwind CSS.
-
-12. Tombol Tracking
-
-Jika terdapat nomor resi, tampilkan:
-
-[Lacak Pengiriman]
-
-Untuk tahap pertama tidak perlu integrasi API kurir.
-
-Cukup siapkan tombol/link tracking.
-
-Contoh:
-
-https://www.jne.co.id/
-
-Jangan membuat integrasi API JNE/J&T/SiCepat pada tahap ini.
-
-13. Security
-
-Ini WAJIB.
-
-User hanya boleh melihat transaksi miliknya sendiri.
-
-Contoh:
-
-Order::where('user_id', auth()->id())
-
-Jangan menggunakan:
-
-Order::find($id)
-
-tanpa mengecek pemilik order.
-
-User tidak boleh bisa melihat order milik user lain walaupun mengetahui ID atau nomor order.
-
-14. Service
-
-Gunakan dua service sederhana.
-
-OrderService
-
-File:
-
-app/Services/OrderService.php
-
-Digunakan untuk:
-
-Mengambil transaksi user
-Mengambil detail transaksi
-Filter transaksi
-ShipmentService
-
-File:
-
-app/Services/ShipmentService.php
-
-Digunakan untuk:
-
-Mengambil informasi pengiriman
-Mengambil status pengiriman
-Membuat tracking URL
-
-Jangan membuat Repository atau Architecture yang kompleks.
-
-15. Livewire Rules
-
-Livewire hanya menangani:
-
-UI
-Filter
-Pagination
-User interaction
-Loading state
-Redirect
-
-Service menangani:
-
-Business logic
-
-Model menangani:
-
-Database relationship
-
-Gunakan pola sederhana:
-
-Blade
-↓
-Livewire
-↓
-Service
-↓
-Model
-↓
-Database 16. UI Design
-
-Gunakan desain yang sudah ada di project.
-
-Gunakan:
-
-Tailwind CSS
-Forest green
-White
-Gray
-Rounded card
-Soft shadow
-Responsive layout
-
-Gunakan card:
-
-rounded-2xl
-shadow-sm
-border
-
-Tambahkan:
-
-hover effect
-loading state
-empty state
-
-Jangan mengubah layout website lain yang tidak berhubungan dengan fitur ini.
-
-17. Responsive
-
-Harus berjalan dengan baik pada:
-
-Desktop
-Tablet
-Mobile
-
-Untuk mobile, transaksi harus berubah menjadi card vertical.
-
-18. CLI Commands
-
-Gunakan command berikut:
-
-php artisan make:model Order -m
-php artisan make:model OrderItem -m
-php artisan make:model Shipment -m
-
-php artisan make:livewire Dashboard/TransactionHistory
-php artisan make:livewire Dashboard/ShippingDetail
-
-php artisan make:class Services/OrderService
-php artisan make:class Services/ShipmentService
-
-Kemudian:
-
-php artisan migrate 19. Route
-
-Tambahkan route:
-
-Route::middleware('auth')->group(function () {
-Route::get('/dashboard/transactions', \App\Livewire\Dashboard\TransactionHistory::class)
-->name('dashboard.transactions');
-
-    Route::get('/dashboard/transactions/{order}', \App\Livewire\Dashboard\ShippingDetail::class)
-        ->name('dashboard.transactions.detail');
-
-}); 20. Testing
-
-Setelah selesai, lakukan testing berikut.
-
-Test 1
-
-User login.
-
-Hasil:
-
-User dapat melihat transaksi miliknya.
-Test 2
-
-User belum memiliki transaksi.
-
-Hasil:
-
-Menampilkan empty state.
-Test 3
-
-User memilih filter Dikirim.
-
-Hasil:
-
-Hanya transaksi dengan status shipped yang muncul.
-Test 4
-
-User membuka detail transaksi.
-
-Hasil:
-
-Informasi transaksi dan pengiriman muncul.
-Test 5
-
-User mencoba membuka transaksi user lain.
-
-Hasil:
-
-Access ditolak / transaksi tidak ditemukan.
-Test 6
-
-User membuka halaman melalui mobile.
-
-Hasil:
-
-Layout tetap rapi dan tidak overflow. 21. Definition of Done
-
-Fitur dianggap selesai jika semua checklist berikut terpenuhi:
-
-[ ] Migration orders selesai
-[ ] Migration order_items selesai
-[ ] Migration shipments selesai
-
-[ ] Model selesai
-[ ] Relationship selesai
-
-[ ] OrderService selesai
-[ ] ShipmentService selesai
-
-[ ] TransactionHistory Livewire selesai
-[ ] ShippingDetail Livewire selesai
-
-[ ] Riwayat transaksi tampil
-[ ] Filter transaksi berjalan
-[ ] Pagination berjalan
-[ ] Empty state tersedia
-
-[ ] Detail transaksi tersedia
-[ ] Detail produk tersedia
-[ ] Detail pengiriman tersedia
-[ ] Nomor resi tersedia
-[ ] Timeline pengiriman tersedia
-
-[ ] Security ownership sudah diterapkan
-[ ] User tidak bisa melihat order user lain
-
-[ ] Responsive mobile
-[ ] Responsive desktop
-[ ] Loading state
-[ ] Tidak ada error Laravel
-[ ] Tidak ada error Livewire 22. Aturan untuk Developer / AI
-
-PENTING:
-
-1. Jangan mengubah fitur yang tidak berhubungan.
-2. Jangan menambahkan package baru tanpa alasan.
-3. Jangan membuat Repository.
-4. Jangan membuat DDD.
-5. Jangan membuat architecture yang kompleks.
-6. Gunakan struktur Livewire per fitur.
-7. Gunakan Service untuk business logic.
-8. Gunakan Eloquent relationship.
-9. Jangan query database di Blade.
-10. Jangan menaruh business logic di Blade.
-11. Pastikan user hanya dapat melihat order miliknya.
-12. Gunakan Tailwind dari project yang sudah ada.
-13. Ikuti design system yang sudah ada.
-14. Kerjakan satu bagian terlebih dahulu sebelum lanjut.
-15. Setelah setiap bagian selesai, jelaskan file yang dibuat/diubah.
-    Urutan pengerjaan
-16. Migration
-    ↓
-17. Model & Relationship
-    ↓
-18. Seeder
-    ↓
-19. OrderService
-    ↓
-20. TransactionHistory
-    ↓
-21. ShippingDetail
-    ↓
-22. Route
-    ↓
-23. UI Polish
-    ↓
-24. Security Test
-    ↓
-25. Final Test
-
-Jangan mengerjakan semua bagian sekaligus. Mulai dari database, pastikan berhasil, kemudian lanjut ke bagian berikutnya.
+---

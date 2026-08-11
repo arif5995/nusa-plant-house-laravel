@@ -9,18 +9,17 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-    public function up()
+    public function up(): void
     {
         Schema::create('orders', function (Blueprint $table) {
             $table->id();
-            $table->string('customer_name');
-            $table->string('phone');
-            $table->string('shipping_type'); // 'local' atau 'export'
-            $table->text('address');
-            $table->string('country')->nullable(); // Untuk ekspor
-            $table->decimal('total_price', 12, 2);
-            $table->string('status')->default('pending'); // pending, processed, shipped
-            // $table->longText('payment_receipt')->nullable();
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
+            $table->string('order_number')->unique();
+            $table->enum('status', ['pending', 'processing', 'shipped', 'completed', 'cancelled'])->default('pending');
+            $table->decimal('subtotal', 12, 2);
+            $table->decimal('shipping_cost', 12, 2)->default(0);
+            $table->decimal('total', 12, 2);
+            $table->enum('payment_status', ['unpaid', 'paid', 'refunded'])->default('unpaid');
             $table->timestamps();
         });
     }

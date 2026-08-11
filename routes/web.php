@@ -5,6 +5,7 @@ use App\Livewire\Cart\Cart;
 use App\Livewire\Collections\Collections;
 use App\Livewire\Dashboard\Dashboard;
 use App\Livewire\Dashboard\TransactionHistory;
+use App\Livewire\Dashboard\ShippingDetail;
 use App\Livewire\DetailProduct\DetailProduct;
 use App\Livewire\Home\Home;
 use App\Livewire\Login\Login;
@@ -28,9 +29,9 @@ Route::get('/auth/google', function () {
 Route::middleware('auth')->group(function () {
     Route::livewire('/dashboard', Dashboard::class)->name('dashboard');
     Route::livewire('/profile', Profile::class)->name('profile');
+    Route::livewire('/dashboard/transactions', TransactionHistory::class)->name('dashboard.transactions');
+    Route::livewire('/dashboard/transactions/{order}', ShippingDetail::class)->name('dashboard.transactions.detail');
 });
-
-Route::livewire('/transaction-history', TransactionHistory::class)->name('transaction.history');
 
 // Route::get('/', function () {
 //     return view('welcome');

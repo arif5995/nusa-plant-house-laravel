@@ -2,38 +2,41 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use App\Models\OrderItem;
+use App\Models\Shipment;
 
 class Order extends Model
 {
     use HasFactory;
+
     protected $fillable = [
-        'customer_name',
-        'phone',
-        'shipping_type',
-        'address',
-        'country',
-        'total_price',
-        'status',   
-        'payment_receipt',
+        'user_id',
+        'order_number',
+        'status',
+        'subtotal',
+        'shipping_cost',
+        'total',
+        'payment_status',
     ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
-    protected function casts(): array
-    {
-        return [
-            'total_price' => 'decimal:2',
-        ];
-    }
+    // Cast enum fields to string for proper handling
+    protected $casts = [
+        'status' => 'string',
+        'payment_status' => 'string',
+    ];
 
-    //
+
+
+    // Relationships
     public function items()
     {
         return $this->hasMany(OrderItem::class);
+    }
+
+    public function shipment()
+    {
+        return $this->hasOne(Shipment::class);
     }
 }
