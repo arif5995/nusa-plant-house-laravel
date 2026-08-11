@@ -26,7 +26,7 @@
 
             <div class="flex items-center space-x-4">
                @auth
-                <livewire:pages::navbar-dropdown />
+               <livewire:navbar-dropdown />
             @else
                 <a href="{{ route('login') }}" class="text-sm font-semibold text-gray-600 hover:text-forest-600">Masuk</a>
             @endauth
