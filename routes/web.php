@@ -13,11 +13,11 @@ Route::livewire('/register', 'pages::register')->name('register');
 
 Route::get('/auth/google', function () {
     return Socialite::driver('google')->redirect();
-})->name('auth.google');    
+})->name('auth.google');
 
 Route::middleware('auth')->group(function () {
-    Route::livewire('/dashboard', 'pages.⚡dasboard.dasboard')->name('dashboard');
-    Route::livewire('/profile', 'components.⚡profile-settings')->name('profile');
+    Route::livewire('/dashboard', 'pages::dasboard')->name('dashboard');
+    Route::livewire('/profile', 'pages::profile')->name('profile');
 });
 
 // Route::get('/', function () {

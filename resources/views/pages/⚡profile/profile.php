@@ -2,6 +2,7 @@
 
 use Livewire\Component;
 use Livewire\WithFileUploads;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -21,7 +22,7 @@ new class extends Component
 
     public function mount()
     {
-        $user = auth()->user();
+        $user = Auth::user();
         $this->name = $user->name;
         $this->email = $user->email;
         $this->phone = $user->phone;
@@ -29,7 +30,7 @@ new class extends Component
 
     public function updateProfile()
     {
-        $user = auth()->user();
+        $user = Auth::user();
 
         $this->validate([
             'name' => 'required|string|max:255',
@@ -53,7 +54,7 @@ new class extends Component
             'password' => 'required|string|min:8|confirmed',
         ]);
 
-        auth()->user()->update([
+        Auth::user()->update([
             'password' => Hash::make($this->password),
         ]);
 
@@ -67,7 +68,7 @@ new class extends Component
             'photo' => 'required|image|max:2048', // 2MB max
         ]);
 
-        $user = auth()->user();
+        $user = Auth::user();
 
         // Delete old photo if exists
         if ($user->profile_photo_path) {
@@ -75,7 +76,7 @@ new class extends Component
         }
 
         $path = $this->photo->store('profile-photos', 'public');
-        
+
         $user->update([
             'profile_photo_path' => $path,
         ]);
@@ -84,4 +85,3 @@ new class extends Component
         session()->flash('photo_updated', 'Profile photo updated successfully.');
     }
 };
-?>

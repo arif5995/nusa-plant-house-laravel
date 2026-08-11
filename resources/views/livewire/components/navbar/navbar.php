@@ -7,7 +7,6 @@ use Illuminate\Support\Facades\Session;
 
 new class extends Component
 {
-    //
     public $count = 0;
 
     public function mount()
@@ -34,6 +33,6 @@ new class extends Component
 
     public function render()
     {
-        return view('components.⚡navbar.navbar');
+        return view('livewire.components.navbar.navbar');
     }
 };

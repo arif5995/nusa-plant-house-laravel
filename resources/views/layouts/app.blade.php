@@ -46,7 +46,7 @@
 
 <body class="bg-gray-50 text-gray-800 antialiased flex flex-col min-h-screen">
 
-    <livewire:navbar />
+   <livewire:components.navbar />
 
     <main class="flex-grow">
         {{ $slot }}
