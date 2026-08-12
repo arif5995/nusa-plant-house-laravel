@@ -8,24 +8,29 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
+     *
+     * @return void
      */
     public function up()
     {
         Schema::create('order_items', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('order_id')->constrained()->onDelete('cascade');
+            $table->foreignId('order_id')->constrained('orders')->onDelete('cascade');
+            $table->unsignedBigInteger('product_id')->nullable();
             $table->string('product_name');
-            $table->foreignId('product_id')->constrained()->onDelete('cascade');
-            $table->integer('quantity');
-            $table->decimal('price', 12, 2); // Harga saat dibeli
+            $table->integer('quantity')->default(1);
+            $table->decimal('price', 12, 2)->default(0);
+            $table->decimal('subtotal', 12, 2)->default(0);
             $table->timestamps();
         });
     }
 
     /**
      * Reverse the migrations.
+     *
+     * @return void
      */
-    public function down(): void
+    public function down()
     {
         Schema::dropIfExists('order_items');
     }

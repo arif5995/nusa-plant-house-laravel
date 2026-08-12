@@ -3,7 +3,6 @@
 namespace Database\Factories;
 
 use App\Models\Shipment;
-use App\Models\Order;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -17,7 +16,7 @@ class ShipmentFactory extends Factory
         $couriers = ['JNE', 'TIKI', 'POS Indonesia', 'DHL'];
         $courier = $this->faker->randomElement($couriers);
         $trackingNumber = strtoupper(Str::random(10));
-        $status = $this->faker->randomElement(['pending', 'shipped', 'delivered', 'cancelled']);
+        $status = $this->faker->randomElement(['pending', 'in_transit', 'delivered', 'cancelled']);
         return [
             // 'order_id' will be set by OrderFactory afterCreating callback
             'courier' => $courier,

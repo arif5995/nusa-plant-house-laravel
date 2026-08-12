@@ -13,8 +13,8 @@ class OrderService
      */
     public function getUserOrders(string $status = null, int $perPage = 10)
     {
-        $query = Order::where('user_id', Auth::id())
-                      ->orderByDesc('created_at');
+        $query = Order::query()->where('user_id', Auth::id())
+            ->orderByDesc('created_at');
         if ($status) {
             $query->where('status', $status);
         }
@@ -26,9 +26,9 @@ class OrderService
      */
     public function getOrderDetail(int $orderId)
     {
-        return Order::where('user_id', Auth::id())
-                    ->with(['items', 'shipment'])
-                    ->findOrFail($orderId);
+        return Order::query()->where('user_id', Auth::id())
+            ->with(['items', 'shipment'])
+            ->findOrFail($orderId);
     }
 
     /**
