@@ -61,6 +61,41 @@
         @enderror
     </div>
 
+    @if ($shippingType === 'local')
+        <div class="space-y-2 pt-4 border-t relative">
+            <label class="block font-bold text-gray-800">Cari Kota / Kecamatan Tujuan</label>
+
+            <div class="relative">
+                <input wire:model.live.debounce.500ms="destinationSearch" type="text"
+                    placeholder="Ketik nama kota atau kecamatan..."
+                    class="w-full p-3 border rounded-xl focus:ring-2 focus:ring-forest-600 outline-none @error('destinationId') border-red-500 @enderror">
+
+                @if (count($destinationResults) > 0)
+                    <div class="absolute z-20 w-full bg-white border border-gray-200 rounded-xl mt-1 shadow-lg max-h-60 overflow-y-auto">
+                        @foreach ($destinationResults as $item)
+                            <button type="button"
+                                wire:click="selectDestination('{{ $item['id'] }}', '{{ $item['label'] }}')"
+                                class="w-full text-left px-4 py-2.5 hover:bg-forest-50 text-sm text-gray-700 border-b border-gray-50 last:border-0">
+                                {{ $item['label'] }}
+                            </button>
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+
+            @if ($destinationId)
+                <div class="flex items-center gap-2 text-xs text-forest-700 bg-forest-50 border border-forest-100 rounded-lg px-3 py-2 mt-1">
+                    <i class="fa-solid fa-circle-check"></i>
+                    <span>Tujuan terpilih: <b>{{ $destinationLabel }}</b></span>
+                </div>
+            @endif
+
+            @error('destinationId')
+                <span class="text-red-500 text-xs">{{ $message }}</span>
+            @enderror
+        </div>
+    @endif
+
     <!-- Tombol Navigasi -->
     <div class="flex gap-4 mt-6">
         <button wire:click="prevStep"

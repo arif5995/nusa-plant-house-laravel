@@ -19,6 +19,7 @@ class Order extends Model
         'shipping_cost',
         'total',
         'payment_status',
+        'payment_receipt',
     ];
 
     // Cast enum fields to string for proper handling

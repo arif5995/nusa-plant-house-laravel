@@ -42,4 +42,10 @@ return [
         'redirect' => env('GOOGLE_REDIRECT_URI'),
     ],
 
+    'rajaongkir' => [
+        'key'       => env('RAJAONGKIR_API_KEY'),
+        'base_url'  => env('RAJAONGKIR_BASE_URL', 'https://rajaongkir.komerce.id/api/v1'),
+        'origin_id' => env('RAJAONGKIR_ORIGIN_DISTRICT_ID'),
+    ],
+
 ];

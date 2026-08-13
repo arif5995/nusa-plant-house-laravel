@@ -51,6 +51,7 @@ class Collections extends Component
                 'price'    => $product->price,
                 'quantity' => 1,
                 'image'    => $product->image,
+                'weight'   => $product->weight ?? 500,
             ];
         }
 

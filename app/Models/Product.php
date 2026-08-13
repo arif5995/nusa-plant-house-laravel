@@ -9,6 +9,12 @@ class Product extends Model
 {
 
     use HasFactory;
+    protected $fillable = [
+        'name',
+        'slug',
+        'price',
+        'weight',
+    ];
     public static function findBySlug($slug)
     {
         return self::allProducts()->firstWhere('slug', $slug);

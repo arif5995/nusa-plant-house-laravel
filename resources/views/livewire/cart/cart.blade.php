@@ -5,5 +5,5 @@
     </h1>
 
     <!-- Include sub-view berdasarkan step -->
-    @include('cart.steps.step-' . $step)
+    @include('livewire.cart.steps.step-' . $step)
 </div>

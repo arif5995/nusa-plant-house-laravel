@@ -248,6 +248,55 @@
             </div>
             </div>
 
+@if ($shippingType === 'local')
+<div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-200 space-y-4">
+    <h3 class="font-bold text-gray-800 text-lg flex items-center gap-3">
+        <i class="fa-solid fa-truck text-forest-600"></i>
+        <span>Pilih Jasa Kurir</span>
+    </h3>
+
+    <div wire:loading wire:target="loadCouriers"
+        class="p-4 bg-blue-50 border border-blue-200 rounded-2xl flex items-center gap-3 text-xs text-blue-800">
+        <i class="fa-solid fa-spinner fa-spin"></i>
+        <span class="font-semibold">Menghitung ongkos kirim...</span>
+    </div>
+
+    <div wire:loading.remove wire:target="loadCouriers" class="space-y-2.5">
+        @if (count($couriers) > 0)
+            @foreach ($couriers as $index => $courier)
+                <label class="flex items-center justify-between p-3.5 rounded-2xl border cursor-pointer transition
+                    {{ $selectedCourier && $selectedCourier['courier_code'] === $courier['courier_code'] && $selectedCourier['service'] === $courier['service']
+                        ? 'border-forest-600 bg-forest-50'
+                        : 'border-gray-200 bg-gray-50/70 hover:bg-white' }}">
+                    <div class="flex items-center gap-3">
+                        <input type="radio" name="courier" wire:click="chooseCourier({{ $index }})"
+                            {{ $selectedCourier && $selectedCourier['courier_code'] === $courier['courier_code'] && $selectedCourier['service'] === $courier['service'] ? 'checked' : '' }}
+                            class="accent-forest-600">
+                        <div>
+                            <span class="block text-sm font-bold text-gray-800 uppercase">
+                                {{ $courier['courier_code'] }} - {{ $courier['service'] }}
+                            </span>
+                            <span class="block text-xs text-gray-500">Estimasi {{ $courier['etd'] }} hari</span>
+                        </div>
+                    </div>
+                    <span class="text-sm font-bold text-forest-800">
+                        Rp {{ number_format($courier['cost'], 0, ',', '.') }}
+                    </span>
+                </label>
+            @endforeach
+        @elseif ($destinationId)
+            <p class="text-xs text-gray-500 text-center py-3">Kurir tidak tersedia untuk tujuan ini.</p>
+        @else
+            <p class="text-xs text-gray-500 text-center py-3">Silakan pilih kota tujuan di langkah sebelumnya.</p>
+        @endif
+    </div>
+
+    @error('selectedCourier')
+        <span class="text-red-500 text-xs">{{ $message }}</span>
+    @enderror
+</div>
+@endif
+
 <!-- Financial Calculation Summary Card -->
 <div class="bg-gradient-to-br from-emerald-50/70 via-gray-50/80 to-emerald-50/40 rounded-3xl p-6 shadow-sm border border-emerald-200/80 space-y-4">
     
@@ -467,8 +516,9 @@
     <div class="bg-white rounded-3xl p-6 shadow-sm border border-gray-200 space-y-4">
         @auth
             <!-- Perbaikan Tombol: Mengubah ke bg-emerald-600 solid agar teks selalu terlihat jelas -->
-            <button wire:click="checkout"
+                <button wire:click="checkout"
                     wire:loading.attr="disabled"
+                    @if($shippingType === 'local' && !$selectedCourier) disabled @endif
                     class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-4 px-6 rounded-2xl shadow-lg shadow-emerald-600/20 transition duration-200 transform hover:-translate-y-0.5 active:translate-y-0 flex items-center justify-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed text-base cursor-pointer">
                 <i class="fa-brands fa-whatsapp text-2xl text-white flex-shrink-0"></i> 
                 <span class="text-white font-bold">Konfirmasi & Kirim Pesanan</span>

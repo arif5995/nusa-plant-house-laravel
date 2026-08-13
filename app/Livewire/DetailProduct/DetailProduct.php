@@ -49,6 +49,7 @@ class DetailProduct extends Component
                 'quantity' => $this->quantity, // Ambil dari property $this->quantity
                 'image'    => $this->product->image,
                 'slug'     => $this->product->slug,
+                'weight'   => $this->product->weight ?? 500,
             ];
             session()->flash('success', $this->product->name . ' berhasil ditambahkan ke keranjang!');
         }
