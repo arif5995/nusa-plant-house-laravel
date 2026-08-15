@@ -1,742 +1,355 @@
-# Planning Implementasi: Dashboard Pembeli (Riwayat Transaksi, Upload Bukti Transfer, Batalkan & Edit Order)
+# Planning Implementasi: Perbaikan UI/UX Halaman Riwayat Transaksi
 
-**Revisi berdasarkan klarifikasi:** Dashboard ini **milik pembeli** (bukan admin/toko) — setiap user login melihat riwayat transaksi miliknya sendiri, status pembayaran, dan bisa upload bukti transfer, batalkan pesanan, atau edit order.
-
+**File yang diaudit:** `resources/views/livewire/dashboard/transaction-history.blade.php`, `app/Livewire/Dashboard/TransactionHistory.php`, `app/Services/OrderService.php`
 **Target eksekutor:** Junior Developer / AI model gratis
+**Catatan:** Bug syntax (`<?php` menggantung) dan format mata uang (`$` → `Rp`) di file ini **sudah diperbaiki** — dokumen ini fokus 100% ke UI/UX, bukan bug fungsional lagi.
 
 ---
 
-## 0. Temuan Audit (kondisi kode saat ini)
+## 0. Temuan Audit Desain
 
-| #   | Temuan                                                                                                                                    | Lokasi                                                             | Dampak                                                                                     |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| 1   | `Dashboard.php` masih 100% data dummy hardcode, statistiknya store-wide (Total Products, dll) — tidak relevan untuk dashboard pembeli     | `app/Livewire/Dashboard/Dashboard.php`                             | Harus dirombak total, bukan sekadar disambung ke DB                                        |
-| 2   | `ShippingDetail.php` memanggil `view('livewire.dashboard.shipping-detail')` — **file blade ini tidak ada sama sekali**                    | `app/Livewire/Dashboard/ShippingDetail.php`                        | Route `/dashboard/transactions/{order}` pasti error "View not found" kalau dibuka sekarang |
-| 3   | `transaction-history.blade.php` menampilkan total pakai simbol `$` (`${{ number_format($order->total, 2) }}`), padahal ini toko Indonesia | `resources/views/livewire/dashboard/transaction-history.blade.php` | Salah tampilan mata uang                                                                   |
-| 4   | Tidak ada mekanisme upload bukti transfer, batalkan pesanan, atau edit order sama sekali di kode manapun                                  | —                                                                  | Fitur belum ada, perlu dibangun dari nol                                                   |
-| 5   | Tidak ada tempat penyimpanan data pengiriman (nama penerima, no. HP, alamat) di skema `orders` saat ini                                   | migration `orders`                                                 | Fitur "edit order" butuh field ini — perlu migration tambahan                              |
-
-> **Dependensi:** Kolom `payment_receipt` di tabel `orders` mungkin **belum ada** kalau planning perbaikan checkout (RajaOngkir) sebelumnya belum dikerjakan. Task 1 di bawah mengecek & menambahkannya kalau perlu — aman dijalankan dua kali (idempotent) selama pakai `Schema::hasColumn()` sebagai guard.
-
----
-
-## 1. Cakupan Fitur
-
-Dashboard pembeli terdiri dari 3 halaman (route sudah ada, tinggal diisi logic-nya):
-
-| Route                             | Component                                                   | Fungsi                                                                                            |
-| --------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `/dashboard`                      | `Dashboard.php`                                             | Ringkasan pribadi: jumlah pesanan, jumlah menunggu pembayaran, total belanja, 5 transaksi terbaru |
-| `/dashboard/transactions`         | `TransactionHistory.php` (sudah ada, perlu perbaikan minor) | List semua transaksi milik user, bisa difilter status                                             |
-| `/dashboard/transactions/{order}` | `ShippingDetail.php` (perlu view baru + fitur baru)         | Detail 1 transaksi: status pembayaran, upload bukti transfer, batalkan pesanan, edit order        |
-
-**Aturan bisnis untuk aksi di halaman detail (wajib ditegakkan di backend, bukan cuma disembunyikan di UI):**
-
-- **Upload bukti transfer:** hanya bisa dilakukan kalau `payment_status = 'unpaid'`.
-- **Batalkan pesanan:** hanya bisa kalau `status = 'pending'` (belum diproses toko). Begitu status berubah jadi `processing`/`shipped`/`completed`, tombol batal **hilang**, dan backend tetap menolak kalau ada yang coba akses langsung lewat request manual.
-- **Edit order:** hanya bisa kalau `status = 'pending'`, dengan alasan sama seperti batalkan.
-- Semua query **wajib** di-scope `where('user_id', Auth::id())` — user A tidak boleh bisa lihat/edit/batalkan order milik user B walau tahu ID order-nya (ini sudah jadi pola di `OrderService::getOrderDetail()`, ikuti pola yang sama).
+| #   | Temuan                                                                                                                                                                                                                                                    | Dampak                                                                                                                                                             |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Halaman ini pakai warna **`indigo`** (`text-indigo-600`, `focus:ring-indigo-200`, dst), padahal tema resmi project ini **hijau `forest`** (lihat `tailwind.config.js`: `forest.50/100/600/800`) — dipakai konsisten di halaman Cart & Dashboard.          | Halaman ini terlihat "nyasar", tidak konsisten dengan identitas visual toko.                                                                                       |
+| 2   | File ini salah satu dari **cuma 2 file di seluruh project** yang pakai class `dark:` (satunya `welcome.blade.php`). `darkMode` bahkan **tidak dikonfigurasi** di `tailwind.config.js`, jadi default Tailwind ke `prefers-color-scheme` (ikut setting OS). | Kalau OS user di-set dark mode, halaman ini tiba-tiba berubah gelap sementara semua halaman lain (Dashboard, Cart, dll) tetap terang — pengalaman tidak konsisten. |
+| 3   | Status pesanan cuma teks polos (`Status: Pending`), tidak ada badge warna.                                                                                                                                                                                | Sulit di-scan cepat, padahal Dashboard sudah punya pola badge warna (`bg-yellow-100 text-yellow-800`, dst) yang bisa dipakai ulang.                                |
+| 4   | Status pembayaran (`payment_status`) **tidak ditampilkan sama sekali** di list.                                                                                                                                                                           | User harus klik "Lihat Detail" satu-satu cuma untuk tahu mana yang belum dibayar.                                                                                  |
+| 5   | Tanggal pesanan tidak ditampilkan di card.                                                                                                                                                                                                                | Sulit membedakan pesanan lama vs baru sekilas.                                                                                                                     |
+| 6   | Cuma teks "Lihat Detail" yang bisa diklik, bukan seluruh card.                                                                                                                                                                                            | Target klik kecil, kurang nyaman terutama di mobile.                                                                                                               |
+| 7   | Empty state ("Tidak ada transaksi") sama persis baik untuk "user belum pernah pesan" maupun "hasil filter kosong" — tidak ada petunjuk untuk reset filter.                                                                                                | Membingungkan user yang lupa sudah pilih filter status tertentu.                                                                                                   |
+| 8   | Tidak ada pencarian berdasarkan nomor pesanan — cuma filter status.                                                                                                                                                                                       | Untuk user dengan banyak transaksi, cukup merepotkan mencari 1 pesanan spesifik.                                                                                   |
 
 ---
 
-## 2. Arsitektur
+## 1. Arah Desain
 
-```
-app/
-├── Services/
-│   └── OrderService.php          # tambah method baru: cancelOrder(), updateShippingInfo(), attachPaymentReceipt()
-├── Livewire/Dashboard/
-│   ├── Dashboard.php             # rombak total — ringkasan personal
-│   ├── TransactionHistory.php    # sudah ada, tidak perlu diubah logic-nya
-│   └── ShippingDetail.php        # tambah: upload receipt, cancel, edit mode
-resources/views/livewire/dashboard/
-├── dashboard.blade.php           # rombak total
-├── transaction-history.blade.php # perbaikan minor (format Rupiah)
-└── shipping-detail.blade.php     # BARU — belum ada sama sekali
-database/migrations/
-├── xxxx_add_payment_receipt_to_orders_table.php   # kalau belum ada dari planning sebelumnya
-└── xxxx_add_shipping_info_to_orders_table.php     # BARU — untuk fitur edit order
-```
+Ikuti bahasa visual yang **sudah dipakai** di halaman Dashboard & Cart:
+
+- Warna: `forest-50/100/600/800`, bukan `indigo`.
+- Card: `rounded-2xl` / `rounded-3xl`, `border border-gray-100`, `shadow-sm`.
+- Badge status: pola pill warna sesuai status (`bg-green-100 text-green-800` untuk completed, `bg-yellow-100 text-yellow-800` untuk pending, `bg-red-100 text-red-800` untuk cancelled) — **persis pola yang sudah dipakai di `dashboard.blade.php`**, tinggal disalin.
+- **Hapus semua class `dark:`** dari file ini — konsisten dengan halaman lain yang tidak mendukung dark mode sama sekali.
+- Ikon: pakai Font Awesome (`fa-solid`), sudah dipakai di halaman Cart (`fa-solid fa-truck-fast`, dst).
 
 ---
 
-## 3. Breakdown Task
+## 2. Breakdown Task
 
-### Task 1 — Migration: Kolom yang Dibutuhkan di Tabel `orders`
+### Task 1 — Tambah Dukungan Pencarian di Backend
 
-**Estimasi:** 30 menit
+**Estimasi:** 45 menit
 
-Cek dulu apakah kolom `payment_receipt` sudah ada (dari planning RajaOngkir sebelumnya):
-
-```bash
-php artisan tinker
->>> Schema::hasColumn('orders', 'payment_receipt')
-```
-
-- **Kalau `false`**, buat migration:
-
-    ```bash
-    php artisan make:migration add_payment_receipt_to_orders_table
-    ```
-
-    ```php
-    public function up(): void
-    {
-        Schema::table('orders', function (Blueprint $table) {
-            $table->longText('payment_receipt')->nullable()->after('payment_status');
-        });
-    }
-
-    public function down(): void
-    {
-        Schema::table('orders', function (Blueprint $table) {
-            $table->dropColumn('payment_receipt');
-        });
-    }
-    ```
-
-Lalu, untuk fitur **edit order** (nama penerima, no HP, alamat), buat migration baru:
-
-```bash
-php artisan make:migration add_shipping_info_to_orders_table
-```
+Sebelum sentuh tampilan, siapkan dulu backend-nya. Edit `app/Services/OrderService.php`, ubah `getUserOrders()`:
 
 ```php
-public function up(): void
+public function getUserOrders(?string $status = null, int $perPage = 10, ?string $search = null)
 {
-    Schema::table('orders', function (Blueprint $table) {
-        $table->string('recipient_name')->nullable()->after('order_number');
-        $table->string('recipient_phone')->nullable()->after('recipient_name');
-        $table->text('shipping_address')->nullable()->after('recipient_phone');
-        $table->string('city')->nullable()->after('shipping_address');
-        $table->string('postal_code')->nullable()->after('city');
-    });
-}
+    $query = Order::query()->where('user_id', Auth::id())
+        ->orderByDesc('created_at');
 
-public function down(): void
-{
-    Schema::table('orders', function (Blueprint $table) {
-        $table->dropColumn(['recipient_name', 'recipient_phone', 'shipping_address', 'city', 'postal_code']);
-    });
+    if ($status) {
+        $query->where('status', $status);
+    }
+
+    if ($search) {
+        $query->where('order_number', 'like', '%' . $search . '%');
+    }
+
+    return $query->paginate($perPage);
 }
 ```
 
-Update `$fillable` di `app/Models/Order.php`:
+Edit `app/Livewire/Dashboard/TransactionHistory.php`:
 
 ```php
-protected $fillable = [
-    'user_id',
-    'order_number',
-    'recipient_name',
-    'recipient_phone',
-    'shipping_address',
-    'city',
-    'postal_code',
-    'status',
-    'subtotal',
-    'shipping_cost',
-    'total',
-    'payment_status',
-    'payment_receipt',
-];
-```
+<?php
 
-> **Catatan:** kalau kolom ini masih kosong untuk order-order lama (dibuat sebelum migration ini jalan), halaman detail harus tetap tampil wajar (tampilkan "-" atau "Belum diisi"), jangan error.
+namespace App\Livewire\Dashboard;
+
+use Livewire\Component;
+use Livewire\WithPagination;
+use App\Services\OrderService;
+
+class TransactionHistory extends Component
+{
+    use WithPagination;
+
+    public $statusFilter = null;
+    public $search = '';
+    public $perPage = 10;
+    protected $paginationTheme = 'tailwind';
+
+    public function updatingStatusFilter()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingSearch()
+    {
+        $this->resetPage();
+    }
+
+    public function render()
+    {
+        $orderService = new OrderService();
+        $orders = $orderService->getUserOrders($this->statusFilter, $this->perPage, $this->search);
+        return view('livewire.dashboard.transaction-history', [
+            'orders' => $orders,
+        ]);
+    }
+}
+```
 
 **Checklist:**
 
-- [ ] `php artisan migrate` sukses.
-- [ ] `Schema::hasColumn('orders', 'recipient_name')` dan `payment_receipt` → `true`.
+- [ ] Ketik sebagian nomor order di kolom pencarian (nanti disambung ke UI di Task 2) → lewat tinker, `getUserOrders(null, 10, 'ORD-2026081')` cuma mengembalikan order yang nomornya cocok.
+- [ ] Ganti filter status → halaman tidak "nyangkut" di halaman 2 dari hasil filter sebelumnya (`resetPage()` jalan, sudah ada sebelumnya untuk status, sekarang ditambah untuk search juga).
 
 ---
 
-### Task 2 — Tambah Method di `OrderService`
-
-**Estimasi:** 1.5 jam
-
-Tambahkan 3 method baru ke `app/Services/OrderService.php` (jangan hapus method yang sudah ada):
-
-```php
-use Illuminate\Support\Facades\Log;
-
-/**
- * Batalkan order milik user yang login. Hanya bisa jika status masih 'pending'.
- * Return: true jika berhasil, false jika ditolak (status tidak memenuhi syarat).
- */
-public function cancelOrder(int $orderId): bool
-{
-    $order = Order::query()->where('user_id', Auth::id())->findOrFail($orderId);
-
-    if ($order->status !== 'pending') {
-        return false;
-    }
-
-    $order->update(['status' => 'cancelled']);
-
-    return true;
-}
-
-/**
- * Update data pengiriman (nama, no HP, alamat) milik user yang login.
- * Hanya bisa jika status masih 'pending'.
- */
-public function updateShippingInfo(int $orderId, array $data): bool
-{
-    $order = Order::query()->where('user_id', Auth::id())->findOrFail($orderId);
-
-    if ($order->status !== 'pending') {
-        return false;
-    }
-
-    $order->update([
-        'recipient_name'   => $data['recipient_name'],
-        'recipient_phone'  => $data['recipient_phone'],
-        'shipping_address' => $data['shipping_address'],
-        'city'              => $data['city'] ?? null,
-        'postal_code'       => $data['postal_code'] ?? null,
-    ]);
-
-    return true;
-}
-
-/**
- * Simpan bukti transfer (base64) ke order milik user yang login.
- * Hanya bisa jika payment_status masih 'unpaid'.
- */
-public function attachPaymentReceipt(int $orderId, string $base64Receipt): bool
-{
-    $order = Order::query()->where('user_id', Auth::id())->findOrFail($orderId);
-
-    if ($order->payment_status !== 'unpaid') {
-        return false;
-    }
-
-    $order->update(['payment_receipt' => $base64Receipt]);
-
-    return true;
-}
-```
-
-**Kenapa logic ini ditaruh di Service, bukan langsung di Livewire component:** supaya aturan bisnis (guard status) tidak bisa dilewati walau ada bug di UI — konsisten dengan pola `getUserOrders()`/`getOrderDetail()` yang sudah ada di file yang sama.
-
-**Checklist:**
-
-- [ ] `php artisan tinker` → buat order dummy `status = 'pending'`, panggil `cancelOrder()` → order berubah jadi `cancelled`, method return `true`.
-- [ ] Coba `cancelOrder()` lagi pada order yang sama (sekarang statusnya `cancelled`, bukan `pending`) → return `false`, status **tidak berubah dua kali**.
-- [ ] Coba `cancelOrder()` dengan `orderId` milik user lain (bukan yang sedang "login" di tinker) → harus melempar `ModelNotFoundException` (karena `findOrFail` dengan scope `user_id`), bukan malah berhasil membatalkan order orang lain.
-
----
-
-### Task 3 — Rombak `app/Livewire/Dashboard/Dashboard.php`
+### Task 2 — Rombak Header & Filter (Warna, Badge, Pencarian)
 
 **Estimasi:** 1 jam
 
-```php
-<?php
-
-namespace App\Livewire\Dashboard;
-
-use App\Models\Order;
-use Illuminate\Support\Facades\Auth;
-use Livewire\Component;
-
-class Dashboard extends Component
-{
-    public $totalOrders = 0;
-    public $totalUnpaid = 0;
-    public $totalSpent = 'Rp 0';
-    public $recentOrders = [];
-
-    public function mount()
-    {
-        $userId = Auth::id();
-
-        $this->totalOrders = Order::query()->where('user_id', $userId)->count();
-
-        $this->totalUnpaid = Order::query()
-            ->where('user_id', $userId)
-            ->where('payment_status', 'unpaid')
-            ->count();
-
-        $totalSpentRaw = Order::query()
-            ->where('user_id', $userId)
-            ->where('payment_status', 'paid')
-            ->sum('total');
-
-        $this->totalSpent = 'Rp ' . number_format($totalSpentRaw, 0, ',', '.');
-
-        $this->recentOrders = Order::query()
-            ->where('user_id', $userId)
-            ->latest('created_at')
-            ->take(5)
-            ->get();
-    }
-
-    public function render()
-    {
-        return view('livewire.dashboard.dashboard');
-    }
-}
-```
-
-Timpa `resources/views/livewire/dashboard/dashboard.blade.php` (ganti total, hapus kartu "Total Products" yang tidak relevan untuk pembeli, hapus badge persentase palsu yang sebelumnya hardcode):
+Ganti bagian atas file (header + filter), dari:
 
 ```blade
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <div class="mb-8">
-        <h1 class="text-3xl font-bold text-gray-900">Halo, {{ auth()->user()->name }}!</h1>
-        <p class="text-gray-500 mt-1">Berikut ringkasan pesanan kamu.</p>
+<div class="p-6 bg-gray-100 dark:bg-gray-800 rounded-lg shadow">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-2xl font-semibold text-gray-800 dark:text-gray-100">Riwayat Transaksi</h2>
+        <select wire:model="statusFilter" class="block w-48 mt-1 border-gray-300 rounded-md shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+            ...
+        </select>
+    </div>
+```
+
+Menjadi:
+
+```blade
+<div class="max-w-6xl mx-auto py-10 px-4">
+
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-gray-900 flex items-center gap-3">
+            <i class="fa-solid fa-receipt text-forest-600"></i>
+            Riwayat Transaksi
+        </h1>
+        <p class="text-sm text-gray-500 mt-1">Semua pesanan yang pernah kamu buat.</p>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <p class="text-sm font-medium text-gray-500 mb-1">Total Pesanan</p>
-            <h3 class="text-2xl font-bold text-gray-900">{{ $totalOrders }}</h3>
+    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 mb-6 flex flex-col sm:flex-row gap-3">
+        <div class="relative flex-grow">
+            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm"></i>
+            <input wire:model.live.debounce.500ms="search" type="text" placeholder="Cari nomor pesanan..."
+                class="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-forest-600 focus:border-forest-600 outline-none">
         </div>
-
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <p class="text-sm font-medium text-gray-500 mb-1">Menunggu Pembayaran</p>
-            <h3 class="text-2xl font-bold {{ $totalUnpaid > 0 ? 'text-amber-600' : 'text-gray-900' }}">{{ $totalUnpaid }}</h3>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-            <p class="text-sm font-medium text-gray-500 mb-1">Total Belanja</p>
-            <h3 class="text-2xl font-bold text-gray-900">{{ $totalSpent }}</h3>
-        </div>
+        <select wire:model.live="statusFilter"
+            class="w-full sm:w-52 py-2.5 px-3 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-forest-600 focus:border-forest-600 outline-none">
+            <option value="">Semua Status</option>
+            <option value="pending">Pending</option>
+            <option value="processing">Processing</option>
+            <option value="shipped">Shipped</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+        </select>
     </div>
+```
 
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div class="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
-            <h3 class="text-lg font-semibold text-gray-900">Pesanan Terbaru</h3>
-            <a href="{{ route('dashboard.transactions') }}" class="text-sm font-semibold text-forest-600 hover:underline">Lihat semua</a>
-        </div>
-        <div class="overflow-x-auto">
-            <table class="w-full text-left border-collapse">
-                <thead>
-                    <tr class="bg-gray-50/50">
-                        <th class="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">No. Pesanan</th>
-                        <th class="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                        <th class="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Total</th>
-                        <th class="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider"></th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-100">
-                    @forelse($recentOrders as $order)
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 text-sm text-gray-800 font-medium">{{ $order->order_number }}</td>
-                        <td class="px-6 py-4">
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
-                                {{ $order->status === 'completed' ? 'bg-green-100 text-green-800' : ($order->status === 'cancelled' ? 'bg-red-100 text-red-800' : 'bg-yellow-100 text-yellow-800') }}">
-                                {{ ucfirst($order->status) }}
-                            </span>
-                        </td>
-                        <td class="px-6 py-4 text-sm text-gray-500">Rp {{ number_format($order->total, 0, ',', '.') }}</td>
-                        <td class="px-6 py-4 text-right">
-                            <a href="{{ route('dashboard.transactions.detail', $order->id) }}" class="text-sm font-semibold text-forest-600 hover:underline">Detail</a>
-                        </td>
-                    </tr>
-                    @empty
-                    <tr>
-                        <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">Belum ada pesanan.</td>
-                    </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-    </div>
+> Perhatikan `wire:model` (tanpa `.live`) di versi lama diganti jadi `wire:model.live` — supaya filter status langsung apply begitu dipilih, tidak perlu submit tombol terpisah (sudah otomatis reaktif via Livewire).
+
+**Checklist:**
+
+- [ ] Ketik di kolom pencarian → hasil list ter-filter otomatis setelah berhenti mengetik (debounce 500ms).
+- [ ] Ganti dropdown status → list otomatis ter-filter tanpa reload halaman.
+- [ ] Tidak ada lagi warna `indigo` atau class `dark:` tersisa di file.
+
+---
+
+### Task 3 — Rombak Loading State
+
+**Estimasi:** 15 menit
+
+Ganti:
+
+```blade
+<div wire:loading class="text-center py-6">
+    <svg class="animate-spin h-8 w-8 text-indigo-600 mx-auto" ...>
+```
+
+Menjadi (ganti warna spinner ke `forest-600`, hapus class `dark:`):
+
+```blade
+<div wire:loading class="text-center py-10">
+    <svg class="animate-spin h-8 w-8 text-forest-600 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+    </svg>
+    <p class="mt-3 text-sm text-gray-500">Memuat data...</p>
 </div>
 ```
 
 **Checklist:**
 
-- [ ] Login sebagai user yang punya beberapa order → angka "Total Pesanan"/"Menunggu Pembayaran"/"Total Belanja" sesuai data asli user tersebut (bukan data user lain).
-- [ ] Login sebagai user baru tanpa order sama sekali → semua angka `0`, tabel menunjukkan "Belum ada pesanan.", **tidak error**.
-- [ ] Klik "Lihat semua" / "Detail" → mengarah ke route yang benar.
+- [ ] Ganti filter/pencarian → spinner hijau (bukan indigo) sempat muncul sesaat sebelum hasil baru tampil.
 
 ---
 
-### Task 4 — Perbaikan Minor `TransactionHistory` (format mata uang)
+### Task 4 — Rombak Empty State (Bedakan "Belum Ada Order" vs "Hasil Filter Kosong")
 
-**Estimasi:** 10 menit
+**Estimasi:** 30 menit
 
-Di `resources/views/livewire/dashboard/transaction-history.blade.php`, ganti baris:
+Ganti:
 
 ```blade
-<p class="text-sm text-gray-600 dark:text-gray-300">Total: ${{ number_format($order->total, 2) }}</p>
+@if($orders->isEmpty())
+    <div class="text-center py-12">
+        <p class="text-gray-500 dark:text-gray-400">Tidak ada transaksi.</p>
+    </div>
+@else
 ```
 
-menjadi:
+Menjadi:
 
 ```blade
-<p class="text-sm text-gray-600 dark:text-gray-300">Total: Rp {{ number_format($order->total, 0, ',', '.') }}</p>
-```
-
-**Checklist:**
-
-- [ ] Buka `/dashboard/transactions` → total tampil format Rupiah, bukan Dollar.
-
----
-
-### Task 5 — Buat `resources/views/livewire/dashboard/shipping-detail.blade.php` (BARU)
-
-**Estimasi:** 2–2.5 jam
-
-File ini **belum ada sama sekali** — buat dari nol:
-
-```blade
-<div class="max-w-4xl mx-auto py-10 px-4 space-y-6">
-
-    <div class="flex items-center justify-between">
-        <h1 class="text-2xl font-bold text-gray-900">Detail Pesanan #{{ $order->order_number }}</h1>
-        <a href="{{ route('dashboard.transactions') }}" class="text-sm text-forest-600 hover:underline">&larr; Kembali</a>
-    </div>
-
-    {{-- Status Pesanan & Pembayaran --}}
-    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-            <span class="text-xs uppercase text-gray-400 font-bold">Status Pesanan</span>
-            <p class="font-bold text-gray-800 mt-1">{{ ucfirst($order->status) }}</p>
-        </div>
-        <div>
-            <span class="text-xs uppercase text-gray-400 font-bold">Status Pembayaran</span>
-            <p class="font-bold mt-1 {{ $order->payment_status === 'paid' ? 'text-green-600' : 'text-amber-600' }}">
-                {{ ucfirst($order->payment_status) }}
-            </p>
-        </div>
-        <div>
-            <span class="text-xs uppercase text-gray-400 font-bold">Total</span>
-            <p class="font-bold text-gray-800 mt-1">Rp {{ number_format($order->total, 0, ',', '.') }}</p>
-        </div>
-        <div>
-            <span class="text-xs uppercase text-gray-400 font-bold">Tanggal Pesan</span>
-            <p class="font-bold text-gray-800 mt-1">{{ $order->created_at->format('d M Y, H:i') }}</p>
-        </div>
-    </div>
-
-    {{-- Item Pesanan --}}
-    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-        <h3 class="font-bold text-gray-800 mb-4">Item Pesanan</h3>
-        <div class="space-y-2">
-            @foreach ($order->items as $item)
-                <div class="flex justify-between text-sm border-b border-gray-50 pb-2">
-                    <span>{{ $item->product_name }} x{{ $item->quantity }}</span>
-                    <span class="font-semibold">Rp {{ number_format($item->subtotal, 0, ',', '.') }}</span>
-                </div>
-            @endforeach
-        </div>
-    </div>
-
-    {{-- Info Pengiriman --}}
-    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-        <div class="flex items-center justify-between mb-4">
-            <h3 class="font-bold text-gray-800">Info Pengiriman</h3>
-            @if ($order->status === 'pending' && ! $editMode)
-                <button wire:click="startEdit" class="text-xs font-semibold text-forest-600 hover:underline">Edit</button>
-            @endif
-        </div>
-
-        @if (! $editMode)
-            <div class="text-sm text-gray-700 space-y-1">
-                <p><b>Penerima:</b> {{ $order->recipient_name ?: '-' }}</p>
-                <p><b>No. HP:</b> {{ $order->recipient_phone ?: '-' }}</p>
-                <p><b>Alamat:</b> {{ $order->shipping_address ?: '-' }}</p>
-                <p><b>Kota:</b> {{ $order->city ?: '-' }} {{ $order->postal_code ? '('.$order->postal_code.')' : '' }}</p>
-            </div>
-
-            @if ($shipment)
-                <div class="mt-4 pt-4 border-t border-gray-100 text-sm text-gray-700 space-y-1">
-                    <p><b>Kurir:</b> {{ $shipment->courier }} ({{ $shipment->service }})</p>
-                    <p><b>No. Resi:</b> {{ $shipment->tracking_number ?: 'Belum tersedia' }}</p>
-                    @if ($shipment->tracking_number)
-                        <a href="{{ $trackingUrl }}" target="_blank" class="inline-block mt-2 text-xs font-semibold text-forest-600 hover:underline">Lacak Paket &rarr;</a>
-                    @endif
-                </div>
-            @endif
-        @else
-            {{-- Form Edit --}}
-            <div class="space-y-3">
-                <input wire:model="recipientName" type="text" placeholder="Nama Penerima"
-                    class="w-full p-3 border rounded-xl outline-none @error('recipientName') border-red-500 @enderror">
-                @error('recipientName') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-
-                <input wire:model="recipientPhone" type="tel" placeholder="No. HP"
-                    class="w-full p-3 border rounded-xl outline-none @error('recipientPhone') border-red-500 @enderror">
-                @error('recipientPhone') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-
-                <textarea wire:model="shippingAddress" placeholder="Alamat Lengkap"
-                    class="w-full p-3 border rounded-xl outline-none h-24 @error('shippingAddress') border-red-500 @enderror"></textarea>
-                @error('shippingAddress') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-
-                <div class="grid grid-cols-2 gap-3">
-                    <input wire:model="city" type="text" placeholder="Kota" class="w-full p-3 border rounded-xl outline-none">
-                    <input wire:model="postalCode" type="text" placeholder="Kode Pos" class="w-full p-3 border rounded-xl outline-none">
-                </div>
-
-                <div class="flex gap-3">
-                    <button wire:click="cancelEdit" class="px-4 py-2 rounded-xl bg-gray-100 text-sm font-semibold">Batal</button>
-                    <button wire:click="saveShippingInfo" class="px-4 py-2 rounded-xl bg-forest-600 text-white text-sm font-semibold">Simpan Perubahan</button>
-                </div>
-            </div>
-        @endif
-    </div>
-
-    {{-- Upload Bukti Transfer --}}
-    @if ($order->payment_status === 'unpaid')
-    <div class="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
-        <h3 class="font-bold text-gray-800 mb-4">Upload Bukti Transfer</h3>
-
-        @if ($order->payment_receipt)
-            <p class="text-xs text-green-700 bg-green-50 border border-green-100 rounded-lg px-3 py-2 mb-3">
-                Bukti transfer sudah diupload, menunggu verifikasi toko.
-            </p>
-        @endif
-
-        <input type="file" wire:model="paymentReceipt" accept=".jpg,.jpeg,.png,.pdf" class="text-sm">
-        @error('paymentReceipt') <span class="text-red-500 text-xs block mt-1">{{ $message }}</span> @enderror
-
-        <div wire:loading wire:target="paymentReceipt" class="text-xs text-blue-600 mt-2">Mengunggah...</div>
-
-        @if ($paymentReceipt)
-            <button wire:click="uploadReceipt" class="mt-3 px-4 py-2 rounded-xl bg-forest-600 text-white text-sm font-semibold">
-                Kirim Bukti Transfer
+@if($orders->isEmpty())
+    <div class="text-center py-16 bg-white rounded-2xl border border-gray-100">
+        <i class="fa-regular fa-folder-open text-4xl text-gray-300 mb-3"></i>
+        @if ($statusFilter || $search)
+            <p class="text-gray-500 text-sm">Tidak ada transaksi yang cocok dengan pencarian/filter ini.</p>
+            <button wire:click="$set('statusFilter', ''); $set('search', '')" class="mt-3 text-sm font-semibold text-forest-600 hover:underline">
+                Reset filter
             </button>
+        @else
+            <p class="text-gray-500 text-sm">Kamu belum punya transaksi apa pun.</p>
+            <a href="{{ route('products.index') }}" class="mt-3 inline-block text-sm font-semibold text-forest-600 hover:underline">
+                Mulai belanja &rarr;
+            </a>
         @endif
     </div>
-    @endif
+@else
+```
 
-    {{-- Batalkan Pesanan --}}
-    @if ($order->status === 'pending')
-    <div class="bg-red-50 border border-red-100 rounded-2xl p-6 flex items-center justify-between">
-        <div>
-            <h3 class="font-bold text-red-800">Batalkan Pesanan</h3>
-            <p class="text-xs text-red-600 mt-1">Tindakan ini tidak bisa dibatalkan.</p>
+> Sesuaikan `route('products.index')` dengan nama route katalog produk yang benar-benar ada di project (cek `routes/web.php`, mungkin namanya beda, misal `products` atau `home`).
+
+**Checklist:**
+
+- [ ] User baru tanpa order sama sekali → muncul pesan "belum punya transaksi" + tombol ke halaman belanja.
+- [ ] User dengan order tapi filter status yang dipilih tidak match apa pun → muncul pesan berbeda + tombol "Reset filter" yang berfungsi.
+
+---
+
+### Task 5 — Rombak Card Transaksi (Badge Status, Tanggal, Full-Card Clickable)
+
+**Estimasi:** 1.5 jam
+
+Ganti seluruh blok card:
+
+```blade
+<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    @foreach($orders as $order)
+        <div class="bg-white dark:bg-gray-900 rounded-lg shadow p-4 hover:shadow-lg transition-shadow">
+            <h3 class="font-medium text-gray-900 dark:text-gray-100">#{{ $order->order_number }}</h3>
+            <p class="text-sm text-gray-600 dark:text-gray-300">Status: {{ ucfirst($order->status) }}</p>
+            <p class="text-sm text-gray-600 dark:text-gray-300">Total: Rp {{ number_format($order->total, 0, ',', '.') }}</p>
+            <a href="{{ route('dashboard.transactions.detail', ['order' => $order->id]) }}" class="mt-2 inline-block text-indigo-600 dark:text-indigo-400 hover:underline">
+                Lihat Detail
+            </a>
         </div>
-        <button wire:click="confirmCancel" wire:confirm="Yakin ingin membatalkan pesanan ini?"
-            class="px-4 py-2 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700">
-            Batalkan Pesanan
-        </button>
-    </div>
-    @endif
+    @endforeach
+</div>
+```
 
+Menjadi:
+
+```blade
+<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+    @foreach($orders as $order)
+        <a href="{{ route('dashboard.transactions.detail', ['order' => $order->id]) }}"
+            class="block bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md hover:border-forest-200 transition-all">
+
+            <div class="flex items-start justify-between mb-3">
+                <h3 class="font-bold text-gray-900 text-sm">#{{ $order->order_number }}</h3>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold
+                    {{ match($order->status) {
+                        'completed' => 'bg-green-100 text-green-800',
+                        'cancelled' => 'bg-red-100 text-red-800',
+                        'shipped', 'processing' => 'bg-blue-100 text-blue-800',
+                        default => 'bg-yellow-100 text-yellow-800',
+                    } }}">
+                    {{ ucfirst($order->status) }}
+                </span>
+            </div>
+
+            <p class="text-xs text-gray-400 mb-3">{{ $order->created_at->format('d M Y, H:i') }}</p>
+
+            <div class="flex items-center justify-between pt-3 border-t border-gray-50">
+                <span class="text-xs font-medium {{ $order->payment_status === 'paid' ? 'text-green-600' : 'text-amber-600' }}">
+                    <i class="fa-solid {{ $order->payment_status === 'paid' ? 'fa-circle-check' : 'fa-clock' }} mr-1"></i>
+                    {{ ucfirst($order->payment_status) }}
+                </span>
+                <span class="font-bold text-gray-900 text-sm">Rp {{ number_format($order->total, 0, ',', '.') }}</span>
+            </div>
+        </a>
+    @endforeach
+</div>
+```
+
+> `match()` butuh PHP 8+ — cek versi PHP project dulu (`php -v`). Kalau ternyata masih PHP 7.x (kemungkinan kecil untuk project Laravel modern, tapi tetap dicek), ganti jadi `@if/@elseif` biasa.
+
+**Checklist:**
+
+- [ ] Klik di mana saja pada card (bukan cuma teks "Lihat Detail") → langsung masuk ke halaman detail.
+- [ ] Badge status berubah warna sesuai status (`pending` kuning, `completed` hijau, `cancelled` merah, `shipped`/`processing` biru).
+- [ ] Badge status pembayaran tampil, warna hijau untuk `paid`, kuning/amber untuk `unpaid`.
+- [ ] Tanggal pesanan tampil dengan format yang jelas dibaca.
+
+---
+
+### Task 6 — Rapikan Pagination
+
+**Estimasi:** 15 menit
+
+Bungkus `{{ $orders->links() }}` dengan sedikit spacing tambahan:
+
+```blade
+<div class="mt-8 flex justify-center">
+    {{ $orders->links() }}
 </div>
 ```
 
 **Checklist:**
 
-- [ ] Buka `/dashboard/transactions/{id}` untuk order milik sendiri → halaman tampil lengkap, tidak lagi error "View not found".
-- [ ] Order dengan `status=processing` (bukan `pending`) → tombol "Edit" dan blok "Batalkan Pesanan" **tidak muncul**.
-- [ ] Order dengan `payment_status=paid` → blok "Upload Bukti Transfer" **tidak muncul**.
-- [ ] Coba akses order milik user lain via URL manual (ganti angka ID di address bar) → harus gagal (404 atau redirect), bukan malah tampil.
+- [ ] Kalau data lebih dari `perPage` (10), navigasi halaman tampil rapi, tidak menempel ke card di atasnya.
 
 ---
 
-### Task 6 — Lengkapi `ShippingDetail.php` dengan Method Aksi
+## 3. Estimasi Total Waktu
 
-**Estimasi:** 2 jam
-
-Timpa isi `app/Livewire/Dashboard/ShippingDetail.php`:
-
-```php
-<?php
-
-namespace App\Livewire\Dashboard;
-
-use App\Services\OrderService;
-use App\Services\ShipmentService;
-use Livewire\Component;
-use Livewire\WithFileUploads;
-
-class ShippingDetail extends Component
-{
-    use WithFileUploads;
-
-    public $orderId;
-    public $order;
-    public $shipment;
-    public $trackingUrl = null;
-
-    // Edit mode
-    public $editMode = false;
-    public $recipientName;
-    public $recipientPhone;
-    public $shippingAddress;
-    public $city;
-    public $postalCode;
-
-    // Upload bukti transfer
-    public $paymentReceipt;
-
-    protected OrderService $orderService;
-    protected ShipmentService $shipmentService;
-
-    public function boot(OrderService $orderService, ShipmentService $shipmentService)
-    {
-        $this->orderService = $orderService;
-        $this->shipmentService = $shipmentService;
-    }
-
-    public function mount($order)
-    {
-        $this->orderId = $order;
-        $this->loadOrder();
-    }
-
-    protected function loadOrder()
-    {
-        $this->order = $this->orderService->getOrderDetail($this->orderId);
-        $this->shipment = $this->shipmentService->getShipmentByOrder($this->order);
-
-        if ($this->shipment && $this->shipment->tracking_number) {
-            $this->trackingUrl = $this->shipmentService->generateTrackingUrl(
-                $this->shipment->courier,
-                $this->shipment->tracking_number
-            );
-        }
-    }
-
-    // ===== Edit Info Pengiriman =====
-
-    public function startEdit()
-    {
-        if ($this->order->status !== 'pending') {
-            return;
-        }
-
-        $this->recipientName    = $this->order->recipient_name;
-        $this->recipientPhone   = $this->order->recipient_phone;
-        $this->shippingAddress  = $this->order->shipping_address;
-        $this->city              = $this->order->city;
-        $this->postalCode        = $this->order->postal_code;
-        $this->editMode = true;
-    }
-
-    public function cancelEdit()
-    {
-        $this->editMode = false;
-        $this->resetErrorBag();
-    }
-
-    public function saveShippingInfo()
-    {
-        $this->validate([
-            'recipientName'   => 'required|string|max:255',
-            'recipientPhone'  => 'required|string|max:20',
-            'shippingAddress' => 'required|string',
-        ]);
-
-        $success = $this->orderService->updateShippingInfo($this->orderId, [
-            'recipient_name'   => $this->recipientName,
-            'recipient_phone'  => $this->recipientPhone,
-            'shipping_address' => $this->shippingAddress,
-            'city'              => $this->city,
-            'postal_code'       => $this->postalCode,
-        ]);
-
-        if (! $success) {
-            session()->flash('error', 'Pesanan sudah diproses, tidak bisa diubah lagi.');
-            $this->editMode = false;
-            $this->loadOrder();
-            return;
-        }
-
-        $this->editMode = false;
-        $this->loadOrder();
-        session()->flash('success', 'Info pengiriman berhasil diperbarui.');
-    }
-
-    // ===== Upload Bukti Transfer =====
-
-    public function uploadReceipt()
-    {
-        $this->validate([
-            'paymentReceipt' => 'required|file|mimes:jpg,jpeg,png,pdf|max:2048',
-        ]);
-
-        $fileContents = file_get_contents($this->paymentReceipt->getRealPath());
-        $mimeType     = $this->paymentReceipt->getMimeType();
-        $base64String = 'data:' . $mimeType . ';base64,' . base64_encode($fileContents);
-
-        $success = $this->orderService->attachPaymentReceipt($this->orderId, $base64String);
-
-        if (! $success) {
-            session()->flash('error', 'Pesanan ini sudah dibayar, tidak perlu upload bukti transfer lagi.');
-        } else {
-            session()->flash('success', 'Bukti transfer berhasil diupload, menunggu verifikasi toko.');
-        }
-
-        $this->paymentReceipt = null;
-        $this->loadOrder();
-    }
-
-    // ===== Batalkan Pesanan =====
-
-    public function confirmCancel()
-    {
-        $success = $this->orderService->cancelOrder($this->orderId);
-
-        if (! $success) {
-            session()->flash('error', 'Pesanan ini sudah diproses, tidak bisa dibatalkan lagi.');
-        } else {
-            session()->flash('success', 'Pesanan berhasil dibatalkan.');
-        }
-
-        $this->loadOrder();
-    }
-
-    public function render()
-    {
-        return view('livewire.dashboard.shipping-detail');
-    }
-}
-```
-
-> Tambahkan juga blok tampilan flash message (`session('success')`/`session('error')`) di bagian atas `shipping-detail.blade.php` dari Task 5 — sisipkan tepat di bawah judul halaman:
->
-> ```blade
-> @if (session('success'))
->     <div class="p-3 bg-green-50 border border-green-200 text-green-700 text-sm rounded-xl">{{ session('success') }}</div>
-> @endif
-> @if (session('error'))
->     <div class="p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl">{{ session('error') }}</div>
-> @endif
-> ```
-
-**Checklist:**
-
-- [ ] Klik "Edit" pada order `pending` → form muncul terisi data lama, ubah alamat, klik "Simpan Perubahan" → data ter-update, tampilan kembali ke mode baca.
-- [ ] Upload bukti transfer pada order `unpaid` → file terupload, flash message sukses muncul, blok upload tetap tampil tapi dengan pesan "menunggu verifikasi".
-- [ ] Klik "Batalkan Pesanan" → muncul konfirmasi browser (`wire:confirm`), setelah konfirmasi status order jadi `cancelled`, blok "Batalkan"/"Edit" langsung hilang dari tampilan.
-- [ ] Coba trigger `saveShippingInfo()`/`confirmCancel()`/`uploadReceipt()` pada order yang statusnya sudah bukan `pending`/`unpaid` (uji lewat tinker atau ubah status manual dulu di DB) → backend menolak (flash message error), **bukan cuma UI yang menyembunyikan tombol**.
+| Task                       | Estimasi              |
+| -------------------------- | --------------------- |
+| Task 1 — Backend pencarian | 45 menit              |
+| Task 2 — Header & filter   | 1 jam                 |
+| Task 3 — Loading state     | 15 menit              |
+| Task 4 — Empty state       | 30 menit              |
+| Task 5 — Card transaksi    | 1.5 jam               |
+| Task 6 — Pagination        | 15 menit              |
+| **Total**                  | **± 4–4.5 jam kerja** |
 
 ---
 
-## 4. Estimasi Total Waktu
+## 4. Definition of Done
 
-| Task                                             | Estimasi                         |
-| ------------------------------------------------ | -------------------------------- |
-| Task 1 — Migration kolom `orders`                | 30 menit                         |
-| Task 2 — Method baru di `OrderService`           | 1.5 jam                          |
-| Task 3 — Rombak `Dashboard.php`                  | 1 jam                            |
-| Task 4 — Perbaikan minor `TransactionHistory`    | 10 menit                         |
-| Task 5 — Buat `shipping-detail.blade.php` (baru) | 2–2.5 jam                        |
-| Task 6 — Lengkapi `ShippingDetail.php`           | 2 jam                            |
-| **Total**                                        | **± 7–7.5 jam kerja (± 1 hari)** |
+1. Tidak ada lagi warna `indigo` atau class `dark:` di file ini — konsisten dengan tema `forest` di seluruh halaman lain.
+2. Status pesanan & status pembayaran tampil sebagai badge warna, bukan teks polos.
+3. Pencarian nomor pesanan berfungsi, reaktif tanpa reload halaman.
+4. Empty state membedakan "belum ada order" vs "hasil filter kosong", dengan aksi yang jelas (reset filter / mulai belanja).
+5. Seluruh card bisa diklik untuk masuk ke detail, bukan cuma teks link kecil.
+6. Semua checklist Task 1–6 lolos, dan halaman tetap berfungsi normal di mobile (cek breakpoint `sm`/`md`/`lg` yang sudah ada di grid).
 
 ---
 
-## 5. Definition of Done
+## 5. Catatan untuk Junior Dev / AI Gratis
 
-1. `/dashboard` menampilkan ringkasan **milik user yang login**, bukan data dummy/store-wide.
-2. `/dashboard/transactions/{id}` tidak lagi error "View not found" — tampil lengkap dengan status, item, info pengiriman.
-3. Upload bukti transfer, batalkan pesanan, dan edit order berfungsi, **dengan guard status di level backend** (bukan cuma disembunyikan di UI).
-4. User tidak bisa mengakses/mengubah/membatalkan order milik user lain.
-5. Semua checklist Task 1–6 lolos.
-
----
-
-## 6. Catatan untuk Junior Dev / AI Gratis
-
-- **Guard status (`pending`/`unpaid`) harus ditegakkan di `OrderService`, bukan cuma di Blade** — kalau cuma disembunyikan di UI, user yang paham bisa memicu action Livewire lewat browser console dan tetap berhasil membatalkan/edit order yang seharusnya sudah terkunci. Ini poin paling penting di seluruh planning ini.
-- Task 5 & 6 saling bergantung — kerjakan sekuensial, jangan paralel, karena blade di Task 5 memanggil properti/method yang baru ditambahkan di Task 6.
-- Kalau ada order lama di database yang dibuat sebelum Task 1 (belum punya `recipient_name` dkk), pastikan tampilan tetap wajar (`{{ $order->recipient_name ?: '-' }}`, sudah ada di kode Task 5) — jangan sampai blank/error karena null.
-- Fitur "kurangi/kembalikan stok produk saat order dibatalkan" **belum termasuk** di planning ini karena pengurangan stok saat checkout sendiri belum diimplementasikan di project ini — kalau nanti fitur itu dibuat, `cancelOrder()` di Task 2 perlu direvisi supaya ikut mengembalikan stok.
+- Kerjakan Task 1 (backend) duluan sebelum Task 2 (UI pencarian) — kalau dibalik, UI pencarian akan terlihat jalan padahal sebenarnya tidak melakukan apa-apa ke hasil.
+- Cek dulu route katalog produk yang benar untuk link "Mulai belanja" di Task 4 — jangan asal tebak nama route, lihat `routes/web.php`.
+- Kalau ragu dengan warna badge status, contek langsung pola yang sudah dipakai di `resources/views/livewire/dashboard/dashboard.blade.php` bagian tabel "Pesanan Terbaru" — supaya konsisten, jangan bikin skema warna baru sendiri.
+- Jangan ubah logic apa pun di luar yang disebutkan (misal jangan sentuh `getOrderDetail()`, `cancelOrder()`, dst) — scope dokumen ini murni tampilan + 1 penambahan kecil (pencarian) di backend.

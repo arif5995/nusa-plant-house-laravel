@@ -11,6 +11,7 @@ class TransactionHistory extends Component
     use WithPagination;
 
     public $statusFilter = null;
+    public $search = '';
     public $perPage = 10;
     protected $paginationTheme = 'tailwind';
 
@@ -19,10 +20,15 @@ class TransactionHistory extends Component
         $this->resetPage();
     }
 
+    public function updatingSearch()
+    {
+        $this->resetPage();
+    }
+
     public function render()
     {
         $orderService = new OrderService();
-        $orders = $orderService->getUserOrders($this->statusFilter, $this->perPage);
+        $orders = $orderService->getUserOrders($this->statusFilter, $this->perPage, $this->search);
         return view('livewire.dashboard.transaction-history', [
             'orders' => $orders,
         ]);

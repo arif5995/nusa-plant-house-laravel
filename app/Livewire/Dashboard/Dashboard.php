@@ -2,24 +2,40 @@
 
 namespace App\Livewire\Dashboard;
 
+use App\Models\Order;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
 class Dashboard extends Component
 {
-    public $totalOrders = 156;
-    public $totalProducts = 42;
-    public $totalTransactions = 'Rp 12.500.000';
-    public $recentActivities = [];
+    public $totalOrders = 0;
+    public $totalUnpaid = 0;
+    public $totalSpent = 'Rp 0';
+    public $recentOrders = [];
 
     public function mount()
     {
-        // Dummy data for recent activities
-        $this->recentActivities = [
-            ['id' => 1, 'action' => 'Order #1023 Placed', 'date' => '2 hours ago', 'status' => 'Pending'],
-            ['id' => 2, 'action' => 'Payment Received for #1022', 'date' => '5 hours ago', 'status' => 'Completed'],
-            ['id' => 3, 'action' => 'New Product Added: Monstera Deliciosa', 'date' => '1 day ago', 'status' => 'Completed'],
-            ['id' => 4, 'action' => 'Order #1021 Shipped', 'date' => '2 days ago', 'status' => 'Completed'],
-        ];
+        $userId = Auth::id();
+
+        $this->totalOrders = Order::query()->where('user_id', $userId)->count();
+
+        $this->totalUnpaid = Order::query()
+            ->where('user_id', $userId)
+            ->where('payment_status', 'unpaid')
+            ->count();
+
+        $totalSpentRaw = Order::query()
+            ->where('user_id', $userId)
+            ->where('payment_status', 'paid')
+            ->sum('total');
+
+        $this->totalSpent = 'Rp ' . number_format($totalSpentRaw, 0, ',', '.');
+
+        $this->recentOrders = Order::query()
+            ->where('user_id', $userId)
+            ->latest('created_at')
+            ->take(5)
+            ->get();
     }
 
     public function render()

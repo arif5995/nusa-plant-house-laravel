@@ -14,6 +14,11 @@ class Order extends Model
     protected $fillable = [
         'user_id',
         'order_number',
+        'recipient_name',
+        'recipient_phone',
+        'shipping_address',
+        'city',
+        'postal_code',
         'status',
         'subtotal',
         'shipping_cost',
@@ -39,5 +44,10 @@ class Order extends Model
     public function shipment()
     {
         return $this->hasOne(Shipment::class);
+    }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 }

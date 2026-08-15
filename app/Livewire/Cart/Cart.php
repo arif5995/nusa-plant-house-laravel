@@ -125,15 +125,31 @@ class Cart extends Component
         $cart = session()->get('cart', []);
 
         $order = Order::create([
-            'user_id'         => auth()->id(),
-            'order_number'    => 'ORD-' . now()->format('Ymd') . '-' . strtoupper(uniqid()),
-            'status'          => 'pending',
-            'subtotal'        => $this->subtotal,
-            'shipping_cost'   => $this->shippingCost,
-            'total'           => $this->subtotal + $this->shippingCost,
-            'payment_status'  => 'unpaid',
-            'payment_receipt' => $base64String,
+            'user_id'          => auth()->id(),
+            'order_number'     => 'ORD-' . now()->format('Ymd') . '-' . strtoupper(uniqid()),
+            'status'           => 'pending',
+            'subtotal'         => $this->subtotal,
+            'shipping_cost'    => $this->shippingCost,
+            'total'            => $this->subtotal + $this->shippingCost,
+            'payment_status'   => 'unpaid',
+            'payment_receipt'  => $base64String,
+            'recipient_name'   => $this->fullName,
+            'recipient_phone'  => $this->phoneNumber,
+            'shipping_address' => $this->shippingAddress,
+            'city'             => $this->city,
+            'postal_code'      => $this->postalCode,
         ]);
+
+        // $order = Order::create([
+        //     'user_id'         => auth()->id(),
+        //     'order_number'    => 'ORD-' . now()->format('Ymd') . '-' . strtoupper(uniqid()),
+        //     'status'          => 'pending',
+        //     'subtotal'        => $this->subtotal,
+        //     'shipping_cost'   => $this->shippingCost,
+        //     'total'           => $this->subtotal + $this->shippingCost,
+        //     'payment_status'  => 'unpaid',
+        //     'payment_receipt' => $base64String,
+        // ]);
 
         foreach ($cart as $id => $item) {
             $subtotalItem = $item['price'] * $item['quantity'];
